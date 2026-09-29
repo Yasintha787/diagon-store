@@ -1,9 +1,12 @@
 const express = require("express");
 const prisma = require("../prisma");
+const authMiddleware = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
-// Get all products
+// ===============================
+// GET ALL PRODUCTS
+// ===============================
 router.get("/", async (req, res) => {
   try {
     const products = await prisma.product.findMany({
@@ -20,14 +23,17 @@ router.get("/", async (req, res) => {
     res.json(products);
   } catch (error) {
     console.error(error);
+
     res.status(500).json({
       message: "Failed to fetch products",
     });
   }
 });
 
-// Create a new product
-router.post("/", async (req, res) => {
+// ===============================
+// CREATE PRODUCT
+// ===============================
+router.post("/", authMiddleware, async (req, res) => {
   try {
     const {
       name,
@@ -38,28 +44,60 @@ router.post("/", async (req, res) => {
       subcategoryId,
     } = req.body;
 
+    // Validation
+    if (!name || name.trim() === "") {
+      return res.status(400).json({
+        message: "Product name is required",
+      });
+    }
+
+    if (
+      price === undefined ||
+      price === null ||
+      Number(price) < 0 ||
+      isNaN(Number(price))
+    ) {
+      return res.status(400).json({
+        message: "Price must be 0 or greater",
+      });
+    }
+
+    if (
+      stock === undefined ||
+      stock === null ||
+      Number(stock) < 0 ||
+      isNaN(Number(stock))
+    ) {
+      return res.status(400).json({
+        message: "Stock must be 0 or greater",
+      });
+    }
+
     const product = await prisma.product.create({
       data: {
-        name,
+        name: name.trim(),
         description,
-        price,
-        stock,
-        categoryId,
-        subcategoryId,
+        price: Number(price),
+        stock: Number(stock),
+        categoryId: categoryId ? Number(categoryId) : null,
+        subcategoryId: subcategoryId ? Number(subcategoryId) : null,
       },
     });
 
     res.status(201).json(product);
   } catch (error) {
     console.error(error);
+
     res.status(500).json({
       message: "Failed to create product",
     });
   }
 });
 
-// Update a product
-router.put("/:id", async (req, res) => {
+// ===============================
+// UPDATE PRODUCT
+// ===============================
+router.put("/:id", authMiddleware, async (req, res) => {
   try {
     const id = Number(req.params.id);
 
@@ -72,47 +110,134 @@ router.put("/:id", async (req, res) => {
       subcategoryId,
     } = req.body;
 
+    // Validate ID
+    if (isNaN(id)) {
+      return res.status(400).json({
+        message: "Invalid product ID",
+      });
+    }
+
+    // Validation
+    if (!name || name.trim() === "") {
+      return res.status(400).json({
+        message: "Product name is required",
+      });
+    }
+
+    if (
+      price === undefined ||
+      price === null ||
+      Number(price) < 0 ||
+      isNaN(Number(price))
+    ) {
+      return res.status(400).json({
+        message: "Price must be 0 or greater",
+      });
+    }
+
+    if (
+      stock === undefined ||
+      stock === null ||
+      Number(stock) < 0 ||
+      isNaN(Number(stock))
+    ) {
+      return res.status(400).json({
+        message: "Stock must be 0 or greater",
+      });
+    }
+
     const product = await prisma.product.update({
       where: {
         id,
       },
       data: {
-        name,
+        name: name.trim(),
         description,
-        price,
-        stock,
-        categoryId,
-        subcategoryId,
+        price: Number(price),
+        stock: Number(stock),
+        categoryId: categoryId ? Number(categoryId) : null,
+        subcategoryId: subcategoryId ? Number(subcategoryId) : null,
       },
     });
 
     res.json(product);
   } catch (error) {
     console.error(error);
+
     res.status(500).json({
       message: "Failed to update product",
     });
   }
 });
 
-// Add image to a product
-router.post("/:productId/images", async (req, res) => {
-  try {
-    const productId = Number(req.params.productId);
-    const { url } = req.body;
+// ===============================
+// ADD PRODUCT IMAGE
+// ===============================
+router.post(
+  "/:productId/images",
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const productId = Number(req.params.productId);
+      const { url } = req.body;
 
-    const image = await prisma.productImage.create({
-      data: {
-        url,
-        productId,
+      if (isNaN(productId)) {
+        return res.status(400).json({
+          message: "Invalid product ID",
+        });
+      }
+
+      if (!url || url.trim() === "") {
+        return res.status(400).json({
+          message: "Image URL is required",
+        });
+      }
+
+      const image = await prisma.productImage.create({
+        data: {
+          url: url.trim(),
+          productId,
+        },
+      });
+
+      res.status(201).json(image);
+    } catch (error) {
+      console.error(error);
+
+      res.status(500).json({
+        message: "Failed to add product image",
+      });
+    }
+  }
+);
+
+// ===============================
+// DELETE PRODUCT
+// ===============================
+router.delete("/:id", authMiddleware, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+
+    if (isNaN(id)) {
+      return res.status(400).json({
+        message: "Invalid product ID",
+      });
+    }
+
+    await prisma.product.delete({
+      where: {
+        id,
       },
     });
 
-    res.status(201).json(image);
+    res.json({
+      message: "Product deleted successfully",
+    });
   } catch (error) {
     console.error(error);
+
     res.status(500).json({
-      message: "Failed to add product image",
+      message: "Failed to delete product",
     });
   }
 });
